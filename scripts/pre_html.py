@@ -3,13 +3,12 @@ import json
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
-# ----------- Cấu hình ----------- #
 INPUT_FOLDER = "data/Corpus"
 OUTPUT_FILE = "scripts/clean_chunks.json"
 CHUNK_WORDS = 150
 EXCLUDE_KEYWORDS = ["HỆ THỐNG BỆNH VIỆN", "Fanpage", "Hotline", "Website", "Đặt lịch hẹn", "Mục lục"]
 
-# ----------- Hàm thu thập nội dung ----------- #
+
 def collect_content(start_element, stop_tags):
     content = ""
     next_element = start_element.next_sibling
@@ -19,7 +18,6 @@ def collect_content(start_element, stop_tags):
         next_element = next_element.next_sibling
     return content.strip(), next_element
 
-# ----------- Hàm xử lý từng file HTML ----------- #
 def parse_html_file(path, source_name):
     with open(path, 'r', encoding='utf-8') as f:
         html_content = f.read()
@@ -67,7 +65,7 @@ def parse_html_file(path, source_name):
 
     return root
 
-# ----------- Chạy xử lý toàn bộ folder ----------- #
+
 def process_all_html():
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     all_data = []
@@ -85,6 +83,6 @@ def process_all_html():
 
     print(f"\n✅ Hoàn tất! Đã lưu kết quả vào {OUTPUT_FILE}")
 
-# ----------- Chạy script ----------- #
+
 if __name__ == "__main__":
     process_all_html()

@@ -1,237 +1,93 @@
-# from langchain_community.chat_models import ChatOpenAI
-# from langchain.prompts import PromptTemplate
-# import os
-# from dotenv import load_dotenv
-# from rag_chain import get_qa_chain
-# import logging
-
-# # Load environment variables
-# load_dotenv()
-
-# # Setup logging
-# logging.basicConfig(level=logging.INFO)
-# logger = logging.getLogger(__name__)
-
-# # Tải mô hình LLM hỗ trợ tiếng Việt
-# def load_llm():
-#     """Tải LLM từ OpenRouter"""
-#     return ChatOpenAI(
-#         model="deepseek/deepseek-r1-distill-llama-70b:free",
-#         openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-#         base_url="https://openrouter.ai/api/v1",
-#         temperature=0.5
-#     )
-
-# # Prompt tùy chỉnh để trả lời bằng tiếng Việt
-# def custom_prompt():
-#     prompt = """
-# Bạn là một trợ lý y tế thông minh. Hãy trả lời câu hỏi của người dùng dựa trên thông tin bên dưới.
-# Đừng cố gắng đưa ra câu trả lời nếu không có thông tin liên quan trong tài liệu y tế (context).
-# Nếu không biết câu trả lời, hãy trả lời như sau: "Xin lỗi, tôi không tìm thấy thông tin liên quan trong tài liệu y tế hiện có."
-
-# Thông tin y tế:
-# {context}
-
-# Câu hỏi: {question}
-
-# Hãy trả lời bằng tiếng Việt, ngắn gọn, rõ ràng. Nếu có thể, hãy đề cập đến tên bệnh lý hoặc triệu chứng liên quan.
-# """
-#     return PromptTemplate(template=prompt, input_variables=["context", "question"])
-
-# # Hàm kiểm tra xem câu hỏi có yêu cầu thông tin thêm hay không
-# def is_requesting_more_info(query):
-#     more_info_keywords = [
-#         "thông tin thêm", "chi tiết", "nói thêm", "giải thích", "tìm hiểu thêm",
-#         "thêm thông tin", "hiểu thêm", "thông tin chi tiết", "bệnh này", "về bệnh này"
-#     ]
-#     query_lower = query.lower()
-#     return any(keyword in query_lower for keyword in more_info_keywords)
-
-# # Tạo LLM Chain
-# def get_llm_chain():
-#     llm = load_llm()
-#     prompt = custom_prompt()
-#     # Khởi tạo rag_chain với bộ nhớ
-#     memory = {"last_disease": None}
-#     rag_chain = get_qa_chain(memory=memory)
-
-#     def run(query):
-#         try:
-#             # Xác định loại câu hỏi
-#             if is_requesting_more_info(query):
-#                 # Nếu yêu cầu thông tin thêm, sử dụng tên bệnh từ bộ nhớ
-#                 logger.info("🔍 Yêu cầu thông tin thêm, sử dụng tên bệnh từ bộ nhớ...")
-#                 response = rag_chain(query, use_memory=True)
-#             else:
-#                 # Nếu không, thực hiện truy vấn bình thường (bước 1: đoán bệnh)
-#                 logger.info("🔍 Xử lý câu hỏi triệu chứng...")
-#                 response = rag_chain(query, use_memory=False)
-
-#             # Xử lý phản hồi từ rag_chain
-#             if "result" in response:
-#                 return {
-#                     "context": response.get("context", ""),
-#                     "disease": response.get("disease", ""),
-#                     "result": response["result"],
-#                     "source_documents": response.get("source_documents", [])
-#                 }
-
-#             # Lấy context và disease từ response
-#             context = response.get("context", "")
-#             disease = response.get("disease", "bệnh không xác định")
-#             source_docs = response.get("source_documents", [])
-
-#             # Chuẩn bị câu trả lời từ LLM nếu có context
-#             if context:
-#                 prompt_input = prompt.format(context=context, question=query)
-#                 answer = llm.invoke(prompt_input).content
-#             else:
-#                 # Nếu không có context, tạo câu trả lời cơ bản từ disease
-#                 answer = f"Tôi không tìm thấy thông tin chi tiết về {disease} trong tài liệu y tế hiện có. Tuy nhiên, dựa trên triệu chứng bạn mô tả, bạn có thể đang gặp phải {disease}. Hãy đến khám bác sĩ để được chẩn đoán chính xác."
-
-#             # Ghi log xử lý
-#             logger.info(f"🔍 Context: {context[:50]}... | Disease: {disease} | Answer: {answer}")
-
-#             # Trả về dữ liệu cho agent.py xử lý
-#             return {
-#                 "context": context,
-#                 "disease": disease,
-#                 "result": answer,
-#                 "source_documents": source_docs
-#             }
-
-#         except Exception as e:
-#             logger.error(f"❌ Lỗi trong LLM chain: {e}")
-#             return {
-#                 "context": "",
-#                 "disease": "",
-#                 "result": f"Đã xảy ra lỗi: {str(e)}",
-#                 "source_documents": []
-#             }
-
-#     return run 
-
-from langchain_community.chat_models import ChatOpenAI
-from langchain.prompts import PromptTemplate
 import os
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 from rag_chain import get_qa_chain
+from tools import process_context
 import logging
 
-# Load environment variables
 load_dotenv()
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Tải mô hình LLM hỗ trợ tiếng Việt
-def load_llm():
-    """Tải LLM từ OpenRouter"""
-    return ChatOpenAI(
-        model="deepseek/deepseek-r1-distill-llama-70b:free",
-        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-        base_url="https://openrouter.ai/api/v1",
-        temperature=0.5
-    )
+llm = ChatOpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1",
+    model_name="mistralai/mixtral-8x7b-instruct",
+    temperature=0.5
+)
 
-# Prompt tùy chỉnh để trả lời bằng tiếng Việt
-def custom_prompt():
-    prompt = """
-Bạn là một trợ lý y tế thông minh. Hãy trả lời câu hỏi của người dùng dựa trên thông tin bên dưới.
-Đừng cố gắng đưa ra câu trả lời nếu không có thông tin liên quan trong tài liệu y tế (context).
-Nếu không biết câu trả lời, hãy trả lời như sau: "Xin lỗi, tôi không tìm thấy thông tin liên quan trong tài liệu y tế hiện có."
+prompt_template = """
+Bạn là một trợ lý y tế thông minh, trả lời câu hỏi y tế bằng tiếng Việt một cách chính xác và rõ ràng. Dựa trên ngữ cảnh và câu hỏi, thực hiện như sau:
 
-Thông tin y tế:
-{context}
+1. Nếu yêu cầu thông tin về bệnh, cung cấp chi tiết về bệnh đó.
+2. Nếu là chuẩn đoán, phân tích và đưa ra bệnh khả năng cao hoặc gợi ý nếu không chắc chắn.
+3. Nếu câu hỏi yêu cầu xác nhận (ví dụ: 'Bạn đang đề cập đến bệnh nào?'), trả lời theo đúng yêu cầu đó.
+4. Luôn phân biệt 'đau đầu', 'sốt', 'ho', 'khó thở', 'mệt' hoặc các từ khóa tương tự là triệu chứng khi đi kèm mô tả, không phải tên bệnh.
+5. Luôn khuyến khích người dùng đến bác sĩ nếu triệu chứng nghiêm trọng.
 
-Câu hỏi: {question}
+**Ngữ cảnh:** {context}
+**Câu hỏi:** {question}
+**Triệu chứng trước đó (nếu có):** {previous_symptoms}
 
-Hãy trả lời bằng tiếng Việt, ngắn gọn, rõ ràng. Nếu có thể, hãy đề cập đến tên bệnh lý hoặc triệu chứng liên quan.
+**Phản hồi:**
 """
-    return PromptTemplate(template=prompt, input_variables=["context", "question"])
 
-# Hàm kiểm tra xem câu hỏi có yêu cầu thông tin thêm hay không
-def is_requesting_more_info(query):
-    more_info_keywords = [
-        "thông tin thêm", "chi tiết", "nói thêm", "giải thích", "tìm hiểu thêm",
-        "thêm thông tin", "hiểu thêm", "thông tin chi tiết", "bệnh này", "về bệnh này"
-    ]
-    query_lower = query.lower()
-    return any(keyword in query_lower for keyword in more_info_keywords)
+prompt = ChatPromptTemplate.from_template(prompt_template)
+output_parser = StrOutputParser()
 
-# Tạo LLM Chain
 def get_llm_chain():
-    llm = load_llm()
-    prompt = custom_prompt()
-    # Khởi tạo rag_chain với bộ nhớ
-    memory = {"last_disease": None}
-    rag_chain = get_qa_chain(memory=memory)
+    qa_chain = get_qa_chain()
 
-    def run(query, last_disease=None):
+    def run(query, previous_symptoms=""):
         try:
-            # Đồng bộ last_disease từ interface nếu có
-            if last_disease and last_disease != "bệnh không xác định":
-                memory["last_disease"] = last_disease
-                logger.info(f"🔄 Đã đồng bộ last_disease từ interface: {last_disease}")
+            logger.info(f"🔍 Xử lý câu hỏi LLM: {query}")
+            context_result = process_context(query, previous_symptoms)
+            processed_query = context_result["query"]
+            new_symptoms = context_result["symptoms"]
+            ask_confirmation = context_result.get("ask_confirmation", False)
 
-            # Xác định loại câu hỏi
-            if is_requesting_more_info(query):
-                # Nếu yêu cầu thông tin thêm, sử dụng tên bệnh từ bộ nhớ
-                logger.info("🔍 Yêu cầu thông tin thêm, sử dụng tên bệnh từ bộ nhớ...")
-                if not memory["last_disease"]:
-                    return {
-                        "context": "",
-                        "disease": "",
-                        "result": "Vui lòng cung cấp tên bệnh hoặc hỏi về triệu chứng trước.",
-                        "source_documents": []
-                    }
-                response = rag_chain(query, use_memory=True)
-            else:
-                # Nếu không, thực hiện truy vấn bình thường (bước 1: đoán bệnh)
-                logger.info("🔍 Xử lý câu hỏi triệu chứng...")
-                response = rag_chain(query, use_memory=False)
+            result = qa_chain(processed_query, previous_symptoms=new_symptoms)
 
-            # Xử lý phản hồi từ rag_chain
-            if "result" in response:
-                return {
-                    "context": response.get("context", ""),
-                    "disease": response.get("disease", ""),
-                    "result": response["result"],
-                    "source_documents": response.get("source_documents", [])
-                }
+            if result.get("ask_confirmation", False):
+                logger.info("🔍 ask_confirmation được kích hoạt, trả về câu hỏi xác nhận mà không gọi LLM.")
+                return result
 
-            # Lấy context và disease từ response
-            context = response.get("context", "")
-            disease = response.get("disease", "bệnh không xác định")
-            source_docs = response.get("source_documents", [])
+            context = result.get("context", "")
+            if not context and result.get("possible_diseases"):
+                context = f"Các bệnh có thể liên quan: {', '.join(result['possible_diseases'])}"
 
-            # Chuẩn bị câu trả lời từ LLM nếu có context
-            if context:
-                prompt_input = prompt.format(context=context, question=query)
-                answer = llm.invoke(prompt_input).content
-            else:
-                # Nếu không có context, tạo câu trả lời cơ bản từ disease
-                answer = f"Tôi không tìm thấy thông tin chi tiết về {disease} trong tài liệu y tế hiện có. Tuy nhiên, dựa trên triệu chứng bạn mô tả, bạn có thể đang gặp phải {disease}. Hãy đến khám bác sĩ để được chẩn đoán chính xác."
-
-            # Ghi log xử lý
-            logger.info(f"🔍 Context: {context[:50]}... | Disease: {disease} | Answer: {answer}")
-
-            # Trả về dữ liệu
-            return {
+            input_data = {
                 "context": context,
-                "disease": disease,
-                "result": answer,
-                "source_documents": source_docs
+                "question": query,
+                "previous_symptoms": new_symptoms if new_symptoms else ""
             }
+
+            response = prompt | llm | output_parser
+            final_response = response.invoke(input_data)
+
+            result["result"] = final_response
+            return result
 
         except Exception as e:
             logger.error(f"❌ Lỗi trong LLM chain: {e}")
             return {
-                "context": "",
-                "disease": "",
                 "result": f"Đã xảy ra lỗi: {str(e)}",
-                "source_documents": []
+                "disease": "",
+                "possible_diseases": [],
+                "context": "",
+                "source_documents": [],
+                "symptoms": previous_symptoms,
+                "ask_confirmation": False
             }
 
     return run
+
+def is_reference_to_last_disease(query):
+    from tools import detect_intent
+    return detect_intent(query).get("intent") == "reference_last"

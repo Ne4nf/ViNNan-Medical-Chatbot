@@ -4,9 +4,10 @@ from langchain_community.vectorstores import Qdrant
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
+from sentence_transformers import CrossEncoder
 import logging
+from tools import process_context
 
-# Load environment variables
 load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
@@ -14,136 +15,177 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 COLLECTION_QUESTIONS = "vimedical-questions"
 COLLECTION_INFORMATION = "vimedical-information"
 
-if not QDRANT_URL or not QDRANT_API_KEY:
-    raise ValueError("⚠️ Thiếu QDRANT_URL hoặc QDRANT_API_KEY trong file .env")
-
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Hàm chuẩn hóa tên bệnh (giống với create_index.py)
-def normalize_disease_name(disease_name):
-    # Loại bỏ dấu cách thừa
-    normalized = disease_name.strip().replace("  ", " ")
-    
-    # Viết hoa chữ đầu mỗi từ
-    normalized = " ".join(word.capitalize() for word in normalized.split())
-    return normalized
+reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
-# Khởi tạo các vectorstore từ Qdrant Cloud
+def normalize_disease_name(name):
+    return " ".join(w.capitalize() for w in name.strip().split())
+
+def is_disease_name(query, known_diseases):
+    from fuzzywuzzy import fuzz
+    query_lower = query.lower()
+    for disease in known_diseases:
+        disease_lower = disease.lower()
+        if fuzz.partial_ratio(disease_lower, query_lower) > 90 or f"bệnh {disease_lower}" in query_lower:
+            return disease
+    return None
+
 def load_vectorstores():
-    try:
-        client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-        embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+    client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+    embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 
-        questions_vs = Qdrant(
-            client=client,
-            collection_name=COLLECTION_QUESTIONS,
-            embeddings=embedding,
-            content_payload_key="text",
-            metadata_payload_key="metadata"
-        )
+    questions_vs = Qdrant(
+        client=client,
+        collection_name=COLLECTION_QUESTIONS,
+        embeddings=embedding,
+        content_payload_key="text",
+        metadata_payload_key="metadata"
+    )
 
-        information_vs = Qdrant(
-            client=client,
-            collection_name=COLLECTION_INFORMATION,
-            embeddings=embedding,
-            content_payload_key="text",
-            metadata_payload_key="metadata"
-        )
+    information_vs = Qdrant(
+        client=client,
+        collection_name=COLLECTION_INFORMATION,
+        embeddings=embedding,
+        content_payload_key="text",
+        metadata_payload_key="metadata"
+    )
 
-        logger.info("✅ Đã tải thành công vectorstores từ Qdrant")
-        return questions_vs, information_vs
-    except Exception as e:
-        logger.error(f"❌ Lỗi khi tải vectorstores: {e}")
-        raise
+    return questions_vs, information_vs
 
-# Tạo RAG Chain với 2 bước truy vấn
-def get_qa_chain(memory=None):
+def get_qa_chain():
     questions_vs, information_vs = load_vectorstores()
 
-    def run(query, use_memory=False):
+    known_diseases = set()
+    try:
+        info_docs = information_vs.as_retriever(search_kwargs={"k": 8317}).invoke("all diseases")
+        for doc in info_docs:
+            disease = doc.metadata.get("disease", "").strip()
+            if disease:
+                known_diseases.add(normalize_disease_name(disease))
+        logger.info(f"🔍 Đã tải {len(known_diseases)} bệnh từ collection_information")
+    except Exception as e:
+        logger.error(f"❌ Lỗi khi lấy danh sách bệnh: {e}")
+
+    def run(query, previous_symptoms=""):
         try:
-            # Nếu use_memory=True, truy xuất tên bệnh từ bộ nhớ
-            if use_memory and memory:
-                disease_name = memory.get("last_disease", None)
-                if not disease_name:
-                    logger.warning("⚠️ Không tìm thấy tên bệnh trong bộ nhớ.")
-                    return {
-                        "result": "Tôi không nhớ bệnh nào đã được đề cập trước đó. Vui lòng cung cấp thêm thông tin hoặc hỏi lại về triệu chứng.",
-                        "disease": "",
-                        "context": "",
-                        "source_documents": []
-                    }
-                disease_name = normalize_disease_name(disease_name)
-                logger.info(f"🔍 Sử dụng tên bệnh từ bộ nhớ: {disease_name}")
+            logger.info(f"🔍 Xử lý câu hỏi: {query}")
+            context_result = process_context(query, previous_symptoms)
+            processed_query = context_result["query"]
+            new_symptoms = context_result["symptoms"]
+            reset = context_result.get("reset", False)
+            ask_confirmation = context_result.get("ask_confirmation", False)
 
-            else:
-                # Bước 1: Truy xuất câu hỏi gần nhất để lấy metadata bệnh
-                question_retriever = questions_vs.as_retriever(search_kwargs={"k": 1})
-                question_docs = question_retriever.invoke(query)
-
-                if not question_docs:
-                    logger.warning(f"⚠️ Không tìm thấy câu hỏi tương tự cho: {query}")
-                    return {
-                        "result": "Xin lỗi, tôi không tìm thấy thông tin liên quan trong tài liệu y tế hiện có.",
-                        "disease": "",
-                        "context": "",
-                        "source_documents": []
-                    }
-
-                # Truy xuất disease từ metadata và chuẩn hóa
-                disease_name = question_docs[0].metadata.get("disease", "").strip()
-                if not disease_name:
-                    logger.warning(f"⚠️ Không tìm thấy tên bệnh trong metadata: {question_docs[0].metadata}")
-                    return {
-                        "result": "Không thể xác định tên bệnh từ câu hỏi tương tự.",
-                        "disease": "",
-                        "context": "",
-                        "source_documents": []
-                    }
-
-                # Chuẩn hóa tên bệnh
-                disease_name = normalize_disease_name(disease_name)
-                logger.info(f"🔍 Tên bệnh tìm được: {disease_name}")
-
-                # Lưu tên bệnh vào bộ nhớ
-                if memory:
-                    memory["last_disease"] = disease_name
-                    logger.info(f"💾 Đã lưu tên bệnh vào bộ nhớ: {disease_name}")
-
-            # Bước 2: Truy xuất thông tin liên quan tới bệnh đó
-            filter_condition = Filter(
-                must=[FieldCondition(key="metadata.disease", match=MatchValue(value=disease_name))]
-            )
-            info_retriever = information_vs.as_retriever(
-                search_kwargs={"k": 4, "filter": filter_condition}
-            )
-            info_docs = info_retriever.invoke(query if not use_memory else disease_name)
-
-            if not info_docs:
-                logger.warning(f"⚠️ Không tìm thấy thông tin chi tiết cho bệnh: {disease_name}")
+            if ask_confirmation:
+                logger.info("🔍 Yêu cầu xác nhận bệnh, không truy xuất thông tin.")
                 return {
-                    "result": f"Dựa trên triệu chứng bạn mô tả, bạn có thể đang gặp phải {disease_name}. Tôi khuyên bạn nên đi khám bác sĩ để được chẩn đoán và điều trị chính xác.",
-                    "disease": disease_name,
+                    "result": processed_query,
+                    "disease": "",
+                    "possible_diseases": [],
                     "context": "",
-                    "source_documents": [{"content": doc.page_content, "metadata": doc.metadata} for doc in question_docs] if not use_memory else []
+                    "source_documents": [],
+                    "symptoms": new_symptoms,
+                    "ask_confirmation": True
                 }
 
-            context = "\n\n".join([doc.page_content for doc in info_docs])
-            return {
-                "context": context,
-                "disease": disease_name,
-                "source_documents": [{"content": doc.page_content, "metadata": doc.metadata} for doc in info_docs]
-            }
+            if reset:
+                logger.info(f"🔍 Reset ngữ cảnh")
+                new_symptoms = ""
+
+            if (disease := is_disease_name(processed_query, known_diseases)):
+                logger.info(f"🔍 Phát hiện tên bệnh: {disease}")
+                disease_detected = disease
+            else:
+                question_retriever = questions_vs.as_retriever(search_kwargs={"k": 20})
+                question_docs = question_retriever.invoke(processed_query)
+                if not question_docs:
+                    return {
+                        "result": "Tôi không tìm thấy thông tin phù hợp. Vui lòng mô tả rõ hơn hoặc nêu tên bệnh.",
+                        "disease": "",
+                        "possible_diseases": [],
+                        "context": "",
+                        "source_documents": [],
+                        "symptoms": new_symptoms,
+                        "ask_confirmation": False
+                    }
+
+                ranked_docs = []
+                for doc in question_docs:
+                    score = reranker.predict([(processed_query, doc.page_content)])[0]
+                    ranked_docs.append({"content": doc.page_content, "metadata": doc.metadata, "score": score})
+                ranked_docs = sorted(ranked_docs, key=lambda x: x["score"], reverse=True)
+
+                disease_scores = {}
+                for doc in ranked_docs:
+                    disease = doc["metadata"].get("disease", "").strip()
+                    if disease:
+                        disease = normalize_disease_name(disease)
+                        disease_scores[disease] = disease_scores.get(disease, 0) + doc["score"]
+
+                if not disease_scores:
+                    return {
+                        "result": "Tôi chưa xác định được bệnh cụ thể. Vui lòng cung cấp thêm thông tin.",
+                        "disease": "",
+                        "possible_diseases": [],
+                        "context": "",
+                        "source_documents": [],
+                        "symptoms": new_symptoms,
+                        "ask_confirmation": False
+                    }
+
+                sorted_candidates = sorted(disease_scores.items(), key=lambda x: x[1], reverse=True)
+                top1_score = sorted_candidates[0][1]
+                top2_score = sorted_candidates[1][1] if len(sorted_candidates) > 1 else 0
+
+                if top1_score > 1.125 * top2_score and top1_score >= 0.92:
+                    disease_detected = sorted_candidates[0][0]
+                else:
+                    top3 = [name for name, _ in sorted_candidates[:3]]
+                    return {
+                        "result": f"Tôi chưa chắc chắn. Bạn có thể đang mắc một trong các bệnh: {', '.join(top3)}. Vui lòng chọn bệnh hoặc cung cấp thêm thông tin.",
+                        "disease": "",
+                        "possible_diseases": top3,
+                        "context": "",
+                        "source_documents": [],
+                        "symptoms": new_symptoms,
+                        "ask_confirmation": False
+                    }
+
+            filter_condition = Filter(must=[FieldCondition(key="metadata.disease", match=MatchValue(value=disease_detected))])
+            info_docs = information_vs.as_retriever(search_kwargs={"k": 6, "filter": filter_condition}).invoke(disease_detected)
+            if info_docs:
+                context = "\n\n".join([doc.page_content for doc in info_docs])
+                return {
+                    "result": f"Đây là thông tin chi tiết về {disease_detected}:",
+                    "disease": disease_detected,
+                    "possible_diseases": [disease_detected],
+                    "context": context,
+                    "source_documents": [{"content": doc.page_content, "metadata": doc.metadata} for doc in info_docs],
+                    "symptoms": new_symptoms,
+                    "ask_confirmation": False
+                }
+            else:
+                return {
+                    "result": f"Tôi chưa tìm thấy thông tin chi tiết về {disease_detected}.",
+                    "disease": disease_detected,
+                    "possible_diseases": [disease_detected],
+                    "context": "",
+                    "source_documents": [],
+                    "symptoms": new_symptoms,
+                    "ask_confirmation": False
+                }
 
         except Exception as e:
-            logger.error(f"❌ Lỗi trong quá trình truy vấn: {e}")
+            logger.error(f"❌ Lỗi trong truy vấn: {e}")
             return {
-                "result": f"Đã xảy ra lỗi trong quá trình truy vấn: {str(e)}",
+                "result": f"Đã xảy ra lỗi: {str(e)}",
                 "disease": "",
+                "possible_diseases": [],
                 "context": "",
-                "source_documents": []
+                "source_documents": [],
+                "symptoms": new_symptoms,
+                "ask_confirmation": False
             }
 
     return run

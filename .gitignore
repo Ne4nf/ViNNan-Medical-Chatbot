@@ -1,2 +1,17 @@
+# env/
+# .env
+# Ignore virtual environment
 env/
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore environment variables
 .env
+
+# Ignore data files (will push separately)
+# data/ViMedical_Disease.csv
+# data/Corpus/
+
+# Ignore output files
+*.json

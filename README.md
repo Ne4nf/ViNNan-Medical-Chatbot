@@ -82,23 +82,6 @@ https://github.com/user-attachments/assets/1b040075-034d-4511-8d60-f5a08be3ac91
    streamlit run src/interface.py
    ```
 
----
-
-## 🧠 Project Structure
-
-```
-Vimedical/
-├── data/                  # Folder for raw medical data (HTML, CSV)
-├── scripts/               # Preprocessing scripts
-│   └── pre_html.py        # Script to parse and clean HTML files
-├── src/                   # Source code for the chatbot
-│   ├── interface.py       # Streamlit-based user interface
-│   ├── llm_chain.py       # Logic for LLM integration
-│   ├── rag_chain.py       # Retrieval-Augmented Generation (RAG) logic
-│   ├── tools.py           # Utility functions for context and intent processing
-├── .gitignore             # Git ignore file
-├── requirements.txt       # Python dependencies
-└── README.md              # Project documentation
 ```
 
 ## 👤 Author

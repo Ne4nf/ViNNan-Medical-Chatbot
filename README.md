@@ -1,4 +1,4 @@
-# ViNNan - AI-Powered Medical Chatbot System
+# 💊 ViNNan - AI-Powered Medical Chatbot System
 
 ## Overview
 
@@ -6,43 +6,37 @@ ViNNan is an intelligent medical chatbot system designed to assist users in diag
 
 ---
 
-## Features
+https://github.com/user-attachments/assets/1b040075-034d-4511-8d60-f5a08be3ac91
+
+---
+
+## 📸 Screenshots
+![Image](https://github.com/user-attachments/assets/c448a1d0-44b4-4bf3-8fe8-ff6a85d7f3b2)
+
+---
+
+## 🚀 Features
 
 * **Disease Diagnosis**: Analyze user symptoms and provide potential disease predictions.
 * **Medical Information Retrieval**: Retrieve detailed information about diseases from a structured knowledge base.
-* **Multi-Turn Conversations**: Maintain context across multiple user interactions.
-* **Interactive User Interface**: Built with Streamlit for real-time interaction.
 * **Context Management**: Combine previous and current symptoms for accurate diagnosis when needed.
+* **Multi-Turn Conversations**: Maintain context across multiple user interactions.
 
 ---
 
-## Technologies Used
+## 🛠️ Technologies 
 
-* **Programming Language**: Python
-* **Frameworks & Libraries**:
+🔹 **Programming Language**: Python
 
-  * **Frontend**: Streamlit
-  * **HTML Parsing**: BeautifulSoup
-  * **LLM Integration**: LangChain
-  * **Vector Search**: Qdrant
-  * **Reranking**: SentenceTransformers (Cross-Encoder)
-* **Machine Learning Models**:
+🔹 **Frameworks**: LangChain, Streamlit
 
-  * OpenAI GPT-based LLM
-  * SentenceTransformers for embeddings
-* **Tools**:
+🔹 **Tools**: Qdrant, OpenRouter API, BeautifulSoup
 
-  * Qdrant (Vector Database)
-  * TQDM (Progress Tracking)
-  * JSON (Data Serialization)
-* **Data Sources**:
-
-  * Medical knowledge base in HTML format
-  * CSV files for disease metadata
+🔹 **ML Libraries**: HuggingFace Transformers, Cross-Encoder
 
 ---
 
-## Installation
+## 🏠 Setup & Installation
 
 ### Prerequisites
 
@@ -81,17 +75,7 @@ ViNNan is an intelligent medical chatbot system designed to assist users in diag
    QDRANT_URL=your_qdrant_url
    QDRANT_API_KEY=your_qdrant_api_key
    ```
-
-5. Prepare the medical knowledge base:
-
-   * Place your HTML files in the `data/Corpus` folder.
-   * Run the preprocessing script to generate a clean JSON file:
-
-   ```bash
-   python pre_html.py
-   ```
-
-6. Start the chatbot:
+5. Start the chatbot:
 
    ```bash
    streamlit run src/interface.py
@@ -99,7 +83,7 @@ ViNNan is an intelligent medical chatbot system designed to assist users in diag
 
 ---
 
-## Project Structure
+## 🧠 Project Structure
 
 ```
 Vimedical/
@@ -116,56 +100,18 @@ Vimedical/
 └── README.md              # Project documentation
 ```
 
----
+## 👤 Author
 
-## Usage
-
-1. Open the chatbot in your browser after running the Streamlit app.
-2. Interact with the chatbot by:
-
-   * Providing symptoms for diagnosis.
-   * Asking for detailed information about specific diseases.
-3. The chatbot will maintain context across multiple interactions and provide accurate responses.
+Developed by **THUC TU**
 
 ---
 
-## Key Functionalities
-
-1. **Preprocessing Medical Data**:
-
-   * The `pre_html.py` script parses raw HTML files, removes unnecessary content, and structures the data into clean JSON chunks for efficient retrieval.
-
-2. **Retrieval-Augmented Generation (RAG)**:
-
-   * Combines vector search (Qdrant) and reranking (SentenceTransformers) to retrieve the most relevant medical information.
-
-3. **LLM Integration**:
-
-   * Uses OpenAI GPT-based LLM (via OpenRouter API) to generate natural language responses based on retrieved data and user queries.
-
-4. **Context Management**:
-
-   * Tracks user symptoms and previous interactions to provide accurate multi-turn conversation support.
-
----
-
-## Contributing
-
-Contributions are welcome! If you'd like to contribute, please fork the repository and submit a pull request.
-
----
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
----
 
 ## Contact
 
 For any questions or feedback, please contact:
 
-* **Email**: [your-email@example.com](mailto:your-email@example.com)
-* **GitHub**: [your-username](https://github.com/your-username)
+* **Email**: [tuthucdz@gmail.com](mailto:tuthucdz@gmail.com)
+* **GitHub**: [Ne4nf](https://github.com/Ne4nf)
 
-![demo](https://github.com/user-attachments/assets/1b040075-034d-4511-8d60-f5a08be3ac91.mp4)
+

@@ -21,6 +21,7 @@ https://github.com/user-attachments/assets/1b040075-034d-4511-8d60-f5a08be3ac91
 * **Medical Information Retrieval**: Retrieve detailed information about diseases from a structured knowledge base.
 * **Context Management**: Combine previous and current symptoms for accurate diagnosis when needed.
 * **Multi-Turn Conversations**: Maintain context across multiple user interactions.
+* **Interactive User Interface**: Built with Streamlit for real-time interaction.
 
 ---
 

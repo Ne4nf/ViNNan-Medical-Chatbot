@@ -6,7 +6,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 from sentence_transformers import CrossEncoder
 import logging
-from tools import process_context
+from tools import process_context, COMMON_SYMPTOMS
 
 load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL")
@@ -26,10 +26,16 @@ def normalize_disease_name(name):
 def is_disease_name(query, known_diseases):
     from fuzzywuzzy import fuzz
     query_lower = query.lower()
+    candidates = []
     for disease in known_diseases:
         disease_lower = disease.lower()
+        if disease_lower in COMMON_SYMPTOMS:
+            continue
         if fuzz.partial_ratio(disease_lower, query_lower) > 90 or f"bệnh {disease_lower}" in query_lower:
-            return disease
+            candidates.append(disease)
+    # Ưu tiên tên bệnh dài nhất
+    if candidates:
+        return max(candidates, key=len)
     return None
 
 def load_vectorstores():

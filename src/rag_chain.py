@@ -33,7 +33,6 @@ def is_disease_name(query, known_diseases):
             continue
         if fuzz.partial_ratio(disease_lower, query_lower) > 90 or f"bệnh {disease_lower}" in query_lower:
             candidates.append(disease)
-    # Ưu tiên tên bệnh dài nhất
     if candidates:
         return max(candidates, key=len)
     return None

@@ -82,8 +82,7 @@ https://github.com/user-attachments/assets/1b040075-034d-4511-8d60-f5a08be3ac91
    streamlit run src/interface.py
    ```
 
-```
-
+---
 ## 👤 Author
 
 Developed by **THUC TU**

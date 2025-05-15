@@ -126,11 +126,9 @@ def detect_intent(query, previous_symptoms=""):
         else:
             context["symptoms"] = query_symptoms
     elif best_intent == "diagnose_update":
-        if previous_symptoms:
-            context["symptoms"] = previous_symptoms
-        else:
-            reset = True
-            context["reset"] = True
+        context["symptoms"] = (previous_symptoms + " " + query_symptoms).strip() if previous_symptoms else query_symptoms
+        reset = False
+        context["reset"] = False
 
     return {"intent": best_intent, "context": context, "reset": reset}
 
@@ -148,7 +146,7 @@ def process_context(query, previous_symptoms=""):
     elif intent == "info_new_disease" or (intent == "diagnose_new" and context.get("reset")):
         return {"query": query, "symptoms": "", "reset": True, "ask_confirmation": False}
     elif intent == "diagnose_update" and context.get("symptoms"):
-        combined_query = f"{context['symptoms']} {query}"
+        combined_query = context["symptoms"]
         return {"query": combined_query, "symptoms": context["symptoms"], "reset": False, "ask_confirmation": False}
     else:
         return {"query": query, "symptoms": previous_symptoms, "reset": reset, "ask_confirmation": False}

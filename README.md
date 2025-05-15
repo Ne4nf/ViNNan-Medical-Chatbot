@@ -1,4 +1,4 @@
-# 💊 ViNNan - AI-Powered Medical Chatbot System
+# 💊 ViNNan: AI-Powered Medical Chatbot System
 
 ## Overview
 

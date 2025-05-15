@@ -52,6 +52,10 @@ INTENT_PATTERNS = {
         "Tôi cũng bị {symptom}",
         "Thêm vào {symptom}",
         "Tôi còn có triệu chứng {symptom}",
+        "Tôi còn có các triệu chứng như {symptom}",  
+        "Tôi còn xuất hiện {symptom}",                
+        "Tôi còn gặp {symptom}",                   
+        "Ngoài các triệu chứng trên, tôi còn {symptom}", 
     ]
 }
 
